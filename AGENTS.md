@@ -40,9 +40,11 @@ People trust SolidCraft with their designs; a crash loses their work. **This out
   records crashes inside native code such as graphics drivers), the Windows-only
   `apps/solidcraft/src/native_frame.rs` (the window procedure that answers the resize-border hit
   test of the window without OS decorations, and gives its class the icon the taskbar falls back
-  on) and the Windows-only
+  on), the Windows-only
   `apps/solidcraft/src/space_mouse/windows_hid.rs` (asks Plug and Play which HID interfaces are 3D
-  mice, so no other device is sent anything).
+  mice, so no other device is sent anything) and `android_main` in
+  `apps/solidcraft-android/src/lib.rs` (the NativeActivity entry the Activity's glue looks up in
+  the cdylib).
 - **Errors are `Result<T, E>`** through the crate's error type and `?`. An unfinished feature
   returns an error ("not supported yet: …"); it never panics.
 - **Input-derived numbers are hostile** (command parameters, design files, control-channel
