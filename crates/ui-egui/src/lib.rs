@@ -1132,17 +1132,21 @@ impl SolveApp {
         }
         if id == "component.insert_design" {
             // Another design becomes a linked component; a STEP or mesh file picked here is
-            // inserted the way Insert STEP or Insert Mesh would (#1240).
-            self.pick_open(|app, path| {
-                let Some(path) = path else { return };
-                if solidcraft_engine::io::is_design_path(&path) {
-                    if app.run("component.insert_design", json!({ "path": path })).is_ok() {
-                        app.fit_view();
+            // inserted the way Insert STEP or Insert Mesh would (#1240). The offered types
+            // let a host that reports only bare names recover the extension (Android's SAF).
+            self.pick_open_for(
+                &["solidcraft", "solvecraft", "step", "stp", "igs", "iges", "fcstd", "3dm", "3mf", "stl", "obj", "glb", "gltf"],
+                |app, path| {
+                    let Some(path) = path else { return };
+                    if solidcraft_engine::io::is_design_path(&path) {
+                        if app.run("component.insert_design", json!({ "path": path })).is_ok() {
+                            app.fit_view();
+                        }
+                    } else {
+                        app.insert_path_async(&path);
                     }
-                } else {
-                    app.insert_path_async(&path);
-                }
-            });
+                },
+            );
             return;
         }
         if id == "component.relink" {
@@ -1150,7 +1154,12 @@ impl SolveApp {
             return;
         }
         if matches!(id, "file.insert_step" | "file.insert_mesh") {
-            self.pick_open(|app, path| {
+            // The picker filters to the file types the command reads; a host that can only
+            // report a bare provider name (Android's SAF) also needs it to recover the
+            // extension the engine reads the format from.
+            let exts: &[&str] =
+                if id == "file.insert_step" { &["step", "stp", "igs", "iges", "fcstd", "3dm"] } else { &["3mf", "stl", "obj", "glb", "gltf"] };
+            self.pick_open_for(exts, |app, path| {
                 if let Some(path) = path {
                     app.insert_path_async(&path);
                 }
