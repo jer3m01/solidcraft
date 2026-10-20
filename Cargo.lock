@@ -4248,6 +4248,7 @@ version = "0.23.1"
 dependencies = [
  "eframe",
  "egui",
+ "jni",
  "log",
  "solidcraft-engine",
  "solidcraft-ui-egui",
