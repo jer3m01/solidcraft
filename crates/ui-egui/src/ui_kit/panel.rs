@@ -419,10 +419,12 @@ pub struct Window<'a> {
     escape_closes: bool,
     closeable: bool,
     width: f32,
+    height: f32,
     body_padding: bool,
     page_rows: f32,
     page_padding: egui::Vec2,
     left_slot: bool,
+    fills_display: bool,
 }
 
 impl<'a> Window<'a> {
@@ -441,10 +443,12 @@ impl<'a> Window<'a> {
             escape_closes: true,
             closeable: true,
             width: Tokens::get().form_card_width * 1.5,
+            height: 0.0,
             body_padding: true,
             page_rows: 16.0,
             page_padding: vec2(Tokens::get().space_16, Tokens::get().space_16),
             left_slot: false,
+            fills_display: false,
         }
     }
 
@@ -519,7 +523,6 @@ impl<'a> Window<'a> {
     pub fn show_body(self, ctx: &egui::Context, body: impl FnOnce(&mut Ui)) -> bool {
         self.fields().actions("", "", None).show(ctx, true, body).0
     }
-
     /// Draw shared header, content and optional footer, retaining the caller's IDs.
     pub(crate) fn show(self, ctx: &egui::Context, valid: bool, body: impl FnOnce(&mut Ui)) -> (bool, super::Action) {
         self.surface(ctx, false, |ui| self.content(ui, valid, body, |_| {}))
@@ -538,6 +541,7 @@ impl<'a> Window<'a> {
     }
 
     pub(super) fn content(&self, ui: &mut Ui, valid: bool, body: impl FnOnce(&mut Ui), left: impl FnOnce(&mut Ui)) -> (bool, super::Action) {
+        let fills = fills_display(ui.ctx(), self.id);
         super::scope(ui, |ui| {
             let t = Tokens::get();
             ui.spacing_mut().item_spacing.y = 0.0;
@@ -546,8 +550,13 @@ impl<'a> Window<'a> {
             egui::Frame::NONE.inner_margin(if self.body_padding { t.space_12 } else { 0.0 }).show(ui, |ui| {
                 ui.spacing_mut().item_spacing.y = t.form_gap_y;
                 if self.body_padding {
-                    let height =
-                        (dimension(ui.ctx().content_rect().height()) - t.form_header_height - t.form_footer_height - t.space_24 * 2.0).max(0.0);
+                    let height = if fills {
+                        // The card has the display: the body takes the room the card gives it,
+                        // less the actions at the bottom, so the actions stay reachable.
+                        (ui.available_height() - t.form_footer_height).max(0.0)
+                    } else {
+                        (dimension(ui.ctx().content_rect().height()) - t.form_header_height - t.form_footer_height - t.space_24 * 2.0).max(0.0)
+                    };
                     egui::ScrollArea::vertical()
                         .id_salt("window_body")
                         .max_height(height)
@@ -589,7 +598,6 @@ impl<'a> Window<'a> {
     }
 
     /// The same bounded card frame, either movable or an input-blocking modal.
-    pub(super) fn surface(&self, ctx: &egui::Context, modal: bool, add: impl FnOnce(&mut Ui) -> (bool, super::Action)) -> (bool, super::Action) {
         let frame = Panel::card_frame(ctx);
         let inner_width = (self.width.min(dimension(ctx.content_rect().width())) - frame.total_margin().sum().x).max(0.0);
         if modal {
@@ -656,7 +664,9 @@ fn page_list_sized<S>(ui: &mut Ui, selected: &mut usize, pages: &[WindowPage<S>]
     let height = (dimension(ui.ctx().content_rect().height()) - t.form_header_height - t.form_footer_height - t.space_24 * 3.0)
         .clamp(0.0, t.control_height * rows);
     let (body, _) = ui.allocate_exact_size(vec2(dimension(ui.available_width()), height), egui::Sense::hover());
-    let width = (t.form_label_width * 2.0 + t.space_24 * 2.0).min(body.width());
+    // A narrow card (a phone) has no room for a label column: the page list keeps its icons.
+    let narrow = body.width() < t.form_card_width * 2.0;
+    let width = if narrow { t.space_16 * 3.0 } else { t.form_label_width * 2.0 + t.space_24 * 2.0 }.min(body.width());
     let nav = egui::Rect::from_min_size(body.min, vec2(width, body.height()));
     ui.painter().rect_filled(nav, 0.0, t.dialog_footer);
     t.secondary_vline(ui.painter(), nav.right(), nav.y_range(), t.dialog_rule);
@@ -684,18 +694,23 @@ fn page_list_sized<S>(ui: &mut Ui, selected: &mut usize, pages: &[WindowPage<S>]
                     ui.painter().rect_filled(rect, t.control_radius, if on { t.selected_bg } else { t.hover });
                 }
                 let ink = if on { t.selected_ink } else { t.form_ink };
-                let icon =
-                    egui::Rect::from_center_size(egui::pos2(rect.left() + t.space_10 + t.space_8, rect.center().y), vec2(t.space_16, t.space_16));
+                let icon = if narrow {
+                    egui::Rect::from_center_size(rect.center(), vec2(t.space_16, t.space_16))
+                } else {
+                    egui::Rect::from_center_size(egui::pos2(rect.left() + t.space_10 + t.space_8, rect.center().y), vec2(t.space_16, t.space_16))
+                };
                 crate::icons::paint_ink(ui.painter(), icon, page.icon, if on { ink } else { t.form_dim });
-                let text_rect = egui::Rect::from_min_max(egui::pos2(icon.right() + t.space_8, rect.top()), rect.right_bottom());
-                paint_text(
-                    ui,
-                    text_rect,
-                    label,
-                    if on { crate::fonts::semibold(t.font_label) } else { egui::FontId::proportional(t.font_label) },
-                    ink,
-                    false,
-                );
+                if !narrow {
+                    let text_rect = egui::Rect::from_min_max(egui::pos2(icon.right() + t.space_8, rect.top()), rect.right_bottom());
+                    paint_text(
+                        ui,
+                        text_rect,
+                        label,
+                        if on { crate::fonts::semibold(t.font_label) } else { egui::FontId::proportional(t.font_label) },
+                        ink,
+                        false,
+                    );
+                }
                 response.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::SelectableLabel, ui.is_enabled(), on, label));
                 if response.hovered() {
                     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);

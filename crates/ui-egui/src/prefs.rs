@@ -280,6 +280,13 @@ const WINDOW_PAGES: [ui_kit::WindowPage<SolveApp>; 9] = [
     },
 ];
 
+/// The room the preferences ask for: the page list's own cap plus the header and the actions.
+/// A display that cannot hold it gets the card edge to edge.
+fn prefs_height() -> f32 {
+    let t = Tokens::get();
+    t.control_height * 16.0 + t.form_header_height + t.form_footer_height
+}
+
 fn window_page<const INDEX: usize>(ui: &mut egui::Ui, app: &mut SolveApp) {
     if let Some(rect) = crate::scenario::rect_of("prefs:page:Sketch") {
         crate::scenario::publish_target("prefs:page:Selection", rect);
