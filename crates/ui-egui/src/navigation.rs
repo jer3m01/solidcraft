@@ -401,6 +401,10 @@ pub(crate) struct CameraInput {
     pub primary_nav: Option<NavMode>,
     /// The navigation this frame's pointer input drives.
     pub mode: Option<NavMode>,
+    /// A finger a two-finger gesture left behind (the other lifted first): its pointer is the
+    /// pan's leftover, not a press, so nothing may select or drag from it until it lifts and a
+    /// new touch begins.
+    pub touch_leftover: bool,
 }
 
 /// Where the pointer is for interaction this frame: its hover position, or - on the frame a
@@ -435,7 +439,16 @@ pub(crate) fn handle(app: &mut SolveApp, ui: &mut egui::Ui, rect: Rect, resp: &e
             i.pointer.delta(),
         )
     });
-    let hover = hover.filter(|p| !crate::frame::dock_dragging(ui.ctx()) && !crate::shell::covered(app, *p));
+    let hover = hover.filter(|p| !crate::shell::covered(app, *p));
+    // Two fingers on the glass are the camera's (below). When their gesture ends with a finger
+    // still down, that finger's pointer is the pan's leftover, not the beginning of a press: in
+    // the moment between one finger lifting and the other, it would otherwise look like a drag
+    // on empty space and start a selection, or drag what is under it. It stays inert - no
+    // selection, no drag, no pan - until it lifts; a new touch is a new press.
+    let fingers = ui.input(|i| i.multi_touch()).is_some();
+    let touch_leftover = !fingers && (app.viewport.touch.is_some() || (app.viewport.touch_leftover && (primary_down || primary_released)));
+    app.viewport.touch_leftover = touch_leftover;
+    let hover = hover.filter(|_| !touch_leftover);
     // The right button belongs to the marking menu while it is open.
     let secondary_down = secondary_down && app.viewport.context_menu.is_none();
     // The axis view handles its own clicks; the model underneath must not see them.
@@ -743,7 +756,8 @@ pub(crate) fn handle(app: &mut SolveApp, ui: &mut egui::Ui, rect: Rect, resp: &e
         app.cam = Camera::default();
         app.fit_view();
     }
-    CameraInput { hover, scroll, mods, middle, secondary_down, primary_down, primary_pressed, delta, inside, axes, pinch, pan, primary_nav, mode }
+    CameraInput { hover, scroll, mods, middle, secondary_down, primary_down, primary_pressed, delta, inside, axes, pinch, pan, primary_nav, mode, touch_leftover }
+
 }
 
 /// The 3D mouse's motion this frame (#1336), on a page `rect` whose camera may do `caps`: the cap
