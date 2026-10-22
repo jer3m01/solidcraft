@@ -386,3 +386,22 @@ fn value_boxes_stay_in_view_and_off_the_cursor() {
     let tiny = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(80.0, 30.0));
     assert!(tiny.contains_rect(egui::Rect::from_min_size(in_view(egui::pos2(-200.0, -200.0), Some(tiny), Some(egui::pos2(40.0, 15.0))), BOX)));
 }
+
+/// A phone types on an on-screen keyboard that would cover the sketch, so the boxes a pick makes
+/// wait for a tap: none of them takes the keyboard by itself, and a tap still types the value.
+#[test]
+fn a_soft_keyboard_host_waits_for_a_tap_on_the_box() {
+    let mut h = Harness::new();
+    h.app.services.soft_keyboard = true;
+    h.app.run("sketch.create", json!({"plane": "XY"})).unwrap();
+    h.step(&json!({"start": "sketch.rectangle.two_point"})).unwrap();
+    h.step(&json!({"click": {"world": [0, 0, 0]}})).unwrap();
+    h.step(&json!({"move": {"world": [20, 10, 0]}})).unwrap();
+    assert_eq!(h.app.tool.as_ref().unwrap().dims.len(), 2, "the rectangle has its two boxes");
+    assert_eq!(h.ctx.memory(|m| m.focused()), None, "the boxes wait to be tapped: no keyboard covers the sketch");
+    let area = h.ctx.memory(|m| m.area_rect(egui::Id::new(("sc_dim_area", 0usize)))).expect("the first box was drawn");
+    h.step(&json!({"click": [area.center().x, area.center().y]})).unwrap();
+    assert_eq!(h.ctx.memory(|m| m.focused()), Some(egui::Id::new(("sc_dim", 0))), "a tap gives the box the keyboard");
+    type_value(&mut h, "30");
+    assert_eq!(h.app.tool.as_ref().unwrap().dims[0].value, "30");
+}

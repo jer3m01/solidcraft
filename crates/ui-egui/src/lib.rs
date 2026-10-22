@@ -382,6 +382,11 @@ pub struct Services {
     pub agent_http: Option<agent_chat::backend::HttpFn>,
     /// The system keychain, for API agents' keys; None: keys can't be stored.
     pub secrets: Option<std::sync::Arc<dyn agent_chat::backend::Secrets>>,
+    /// The host types on an on-screen keyboard that covers the display (a phone or tablet): a
+    /// value field takes the keyboard only when the user taps it, never by itself, so a pick or
+    /// an opening command does not hide the view behind the keyboard
+    /// ([`SolveApp::auto_keyboard`]).
+    pub soft_keyboard: bool,
 }
 
 pub struct SolveApp {
@@ -1470,6 +1475,14 @@ impl SolveApp {
     /// open: a sketch is drawn and measured on its plane, so the view is parallel (no foreshortening).
     pub fn perspective_view(&self) -> bool {
         self.ui.perspective && self.session.active_sketch.is_none()
+    }
+
+    /// Whether a value field may take the keyboard by itself (a box a pick made, a dialog
+    /// opening). A host whose keyboard covers the display says no: the keyboard would hide the
+    /// view the user is working in, so the field waits to be tapped
+    /// ([`Services::soft_keyboard`]).
+    pub(crate) fn auto_keyboard(&self) -> bool {
+        !self.services.soft_keyboard
     }
 
     pub fn set_status(&mut self, s: impl Into<String>, error: bool) {
