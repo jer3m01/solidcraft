@@ -10,3 +10,6 @@ proc-macro2 = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 syn = { workspace = true, features = ["visit"] }
+
+# image encoding for app icons (matches crates/render/src/scene.rs::png)
+image = { workspace = true }
